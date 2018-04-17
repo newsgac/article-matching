@@ -7,6 +7,7 @@
 """
 
 import csv
+import os
 import re
 import sys
 import time
@@ -16,6 +17,8 @@ import xml.etree.ElementTree as ET
 ARTICLEURLPATH = "./{http://www.loc.gov/zing/srw/}records/{http://www.loc.gov/zing/srw/}record/{http://www.loc.gov/zing/srw/}recordData/{http://purl.org/dc/elements/1.1/}identifier"
 COMMAND = sys.argv.pop(0)
 DBFILE = "db.txt"
+MAXYEAR = 1995
+SEPARATOR = "\t"
 URLPREFIX = "http://jsru.kb.nl/sru/sru?query=type=artikel+and+page="
 URLINFIX1 = "+and+date="
 URLINFIX2 = "+and+ppn="
@@ -25,23 +28,29 @@ newspaperIds = { "08De Volkskrant":"DDD_artikel" }
 ppns = { "08De Volkskrant":"412869594" }
 
 def makeDateId(newspaper,date,pageNbr): 
-    return(newspaper+"\t"+date+"\t"+pageNbr)
+    return(newspaper+SEPARATOR+date+SEPARATOR+pageNbr)
 
 def splitDateId(date):
-    return(date.split("\t"))
+    return(date.split(SEPARATOR))
+
+def checkDate(dateId):
+    newspaper,date,pageNbr = splitDateId(dateId)
+    try: day,month,year = date.split("-")
+    except: sys.exit(COMMAND+": error processing date "+date)
+    return(int(year) <= MAXYEAR)
 
 def readDBFile(fileName):
-    data = {}
+    dateIds = {}
     with open(fileName,"rt",encoding="utf8") as csvFile:
-        csvReader = csv.DictReader(csvFile,delimiter='\t')
+        csvReader = csv.DictReader(csvFile,delimiter=SEPARATOR)
         lineNbr = 0
         for row in csvReader:
+            lineNbr += 1
             try: dateId = makeDateId(row["Titel krant"],row["Datum"],row["Paginanummer"])
             except: sys.exit(COMMAND+": missing data on line "+str(lineNbr))
-            data[dateId] = True
-            lineNbr += 1
+            if checkDate(dateId): dateIds[dateId] = True
         csvFile.close()
-    return(data)
+    return(dateIds)
 
 def convertDate(date):
     try: day,month,year = date.split("-")
@@ -52,7 +61,7 @@ def convertDate(date):
 
 def makeUrl(date):
     newspaper,date,pageNbr = splitDateId(date)
-    url = URLPREFIX+str(pageNbr)+URLINFIX1+convertDate(date)+URLINFIX2+str(ppns[newspaper])+URLPOSTFIX
+    url = URLPREFIX+str(pageNbr)+URLINFIX1+convertDate(date)+URLINFIX2+ppns[newspaper]+URLPOSTFIX
     return(url)
 
 def getUrlData(url):
@@ -90,11 +99,13 @@ def storeArticleTexts(dateId,articleTexts):
     return()
 
 def main(argv):
-    data = readDBFile(DBFILE)
-    for dateId in data:
-        articleUrls = getArticleUrls(dateId)
-        articleTexts = getArticleTexts(articleUrls)
-        storeArticleTexts(dateId,articleTexts)
+    dateIds = readDBFile(DBFILE)
+    for dateId in dateIds:
+        fileName = makeFileName(dateId)
+        if not os.path.isfile(fileName):
+            articleUrls = getArticleUrls(dateId)
+            articleTexts = getArticleTexts(articleUrls)
+            storeArticleTexts(dateId,articleTexts)
     return(0)
 
 if __name__ == "__main__":
