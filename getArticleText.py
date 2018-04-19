@@ -1,8 +1,7 @@
 #!/usr/bin/python3 -W all
 """
     getArticleText.py: retrieve text of all newspaper articles on a page
-    usage: getArticleText.py
-    note: reads target data from file db.txt
+    usage: getArticleText.py < file
     20180416 erikt(at)xs4all.nl
 """
 
@@ -16,7 +15,6 @@ import xml.etree.ElementTree as ET
 
 ARTICLEURLPATH = "./{http://www.loc.gov/zing/srw/}records/{http://www.loc.gov/zing/srw/}record/{http://www.loc.gov/zing/srw/}recordData/{http://purl.org/dc/elements/1.1/}identifier"
 COMMAND = sys.argv.pop(0)
-DBFILE = "db.txt"
 MAXYEAR = 1995
 SEPARATOR = "\t"
 URLPREFIX = "http://jsru.kb.nl/sru/sru?query=type=artikel+and+page="
@@ -24,8 +22,11 @@ URLINFIX1 = "+and+date="
 URLINFIX2 = "+and+ppn="
 URLPOSTFIX = r"&x-collection=DDD_artikel"
 
-newspaperIds = { "08De Volkskrant":"DDD_artikel" }
-ppns = { "08De Volkskrant":"412869594" }
+ppns = { "00Algemeen Handelsblad":"400374129", 
+         "05NRC Handelsblad":"400367629", 
+         "06De Telegraaf":"832675288", 
+         "07De Maasbode":"842126635", 
+         "08De Volkskrant":"412869594" }
 
 def makeDateId(newspaper,date,pageNbr): 
     return(newspaper+SEPARATOR+date+SEPARATOR+pageNbr)
@@ -39,17 +40,15 @@ def checkDate(dateId):
     except: sys.exit(COMMAND+": error processing date "+date)
     return(int(year) <= MAXYEAR)
 
-def readDBFile(fileName):
+def readDBFile():
     dateIds = {}
-    with open(fileName,"rt",encoding="utf8") as csvFile:
-        csvReader = csv.DictReader(csvFile,delimiter=SEPARATOR)
-        lineNbr = 0
-        for row in csvReader:
-            lineNbr += 1
-            try: dateId = makeDateId(row["Titel krant"],row["Datum"],row["Paginanummer"])
-            except: sys.exit(COMMAND+": missing data on line "+str(lineNbr))
-            if checkDate(dateId): dateIds[dateId] = True
-        csvFile.close()
+    csvReader = csv.DictReader(sys.stdin,delimiter=SEPARATOR)
+    lineNbr = 0
+    for row in csvReader:
+        lineNbr += 1
+        try: dateId = makeDateId(row["Titel krant"],row["Datum"],row["Paginanummer"])
+        except: sys.exit(COMMAND+": missing data on line "+str(lineNbr))
+        if checkDate(dateId): dateIds[dateId] = True
     return(dateIds)
 
 def convertDate(date):
@@ -99,7 +98,7 @@ def storeArticleTexts(dateId,articleTexts):
     return()
 
 def main(argv):
-    dateIds = readDBFile(DBFILE)
+    dateIds = readDBFile()
     for dateId in dateIds:
         fileName = makeFileName(dateId)
         if not os.path.isfile(fileName):
